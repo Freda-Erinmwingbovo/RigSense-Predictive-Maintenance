@@ -1,27 +1,23 @@
-# app.py — RigSense: FINAL 100% WORKING VERSION
+# app.py — RIGSENSE: FINAL 100% WORKING VERSION
 import streamlit as st
 import pandas as pd
 import joblib
-import shap
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 
 st.set_page_config(page_title="RigSense", page_icon="oil_rig", layout="wide")
 
-# ========================= LOAD MODEL =========================
+# ========================= LOAD MODEL + PRE-FITTED IMPUTER =========================
 @st.cache_resource
 def load_rigsense():
     model = joblib.load("models/rigsense_prod.pkl")
-    # Re-create imputer to avoid version issues
-    from sklearn.impute import SimpleImputer
-    imputer = SimpleImputer(strategy='constant', fill_value=0)
+    imputer = joblib.load("models/rigsense_imputer.pkl")  # ← THIS ONE IS ALREADY FITTED!
     features = joblib.load("models/rigsense_features.pkl")
     return model, imputer, features
 
 model, imputer, expected_features = load_rigsense()
 
-# ========================= FEATURE ENGINEERING =========================
+# ========================= FEATURE ENGINEERING (Same as training) =========================
 def engineer_features(df):
     df = df.copy()
     
@@ -40,7 +36,7 @@ def engineer_features(df):
         df[f'{s}_roll_std'] = df.groupby('unit_number')[s].transform(
             lambda x: x.rolling(30, min_periods=1).std()).fillna(0)
     
-    # Add missing columns
+    # Ensure all expected features exist
     for col in expected_features:
         if col not in df.columns:
             df[col] = 0
@@ -49,7 +45,7 @@ def engineer_features(df):
 
 # ========================= UI =========================
 st.title("RigSense — Oil & Gas Predictive Maintenance")
-st.markdown("**Upload NASA .txt → instant failure prediction**")
+st.markdown("**Upload NASA .txt → instant rig failure prediction**")
 st.success("XGBoost • 97.2% Accuracy • Production-Ready")
 
 with st.sidebar:
@@ -73,7 +69,7 @@ if uploaded:
                 df = pd.read_csv(uploaded)
             
             X = engineer_features(df)
-            X_clean = imputer.transform(X)
+            X_clean = imputer.transform(X)  # ← Uses the PRE-FITTED imputer from training!
             prob = model.predict_proba(X_clean)[:, 1]
             pred = (prob >= threshold).astype(int)
             
@@ -99,4 +95,4 @@ if uploaded:
         st.error("Error processing file.")
         st.write("Details:", str(e))
 
-st.caption("Built by an ML Engineer who ships — not just trains models")
+st.caption("Production ML Engineer • Ships systems, not notebooks")
